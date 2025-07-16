@@ -33,6 +33,12 @@ rm -f  ${SECRETS_DIR}/browser.auth
 # Remove .env files
 rm -f src/.env
 
+# Remove UID and GID from project root .env (if present)
+if [ -f .env ]; then
+    sed -i '/^UID=/d' .env
+    sed -i '/^GID=/d' .env
+fi
+
 # Remove bind mount volumes if using bind mounts
 rm -rf volumes/db volumes/media volumes/migrations
 

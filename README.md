@@ -43,6 +43,31 @@ sudo ./reset.sh
 ```
 > **Warning:** This is a destructive operation and will prompt for confirmation.
 
+---
+
+## Testing the System
+
+Once the environment is running, you can test the system as follows:
+
+1. **Add a Scene:**  
+   Use the SceneScape web interface or API to create a new scene.
+
+2. **Add a Camera:**  
+   Add a camera to the scene with the ID `camera1`.
+
+3. **Live View:**  
+   Open the live view for the camera. You should see the sample video playing with vehicle detections overlaid.
+
+- The DLStreamer Pipeline Server is pre-configured to use the video file `car-detection.ts` for `camera1`.
+- The pipeline configuration can be found in [`src/dlstreamer-pipeline-server/config.json`](src/dlstreamer-pipeline-server/config.json).
+
+**Reference Pipeline Configuration:**
+- The pipeline uses `multifilesrc` to loop the video file.
+- Vehicle detection is performed using the specified model.
+- Results are published and available in the live view.
+
+---
+
 ## Contributing
 
 Contributions are welcome. Please open issues or submit pull requests.
