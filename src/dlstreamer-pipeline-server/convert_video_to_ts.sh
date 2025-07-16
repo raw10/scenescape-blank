@@ -15,28 +15,42 @@
 # to ts files so that gstreamer pipeline can keep running the files
 # in infinite loop without having to deallocate buffers
 
+# Usage: ./convert_video_to_ts.sh [directory] [--delete]
+# Converts all .mp4 files in the given directory to .ts files using Dockerized ffmpeg.
+# If --delete is provided, deletes the original .mp4 after successful conversion.
+
 docker pull intel/intel-optimized-ffmpeg:latest
 
-DIRNAME=${PWD}
-SAMPLE_DATA_DIRECTORY=${DIRNAME}/sample_data
+TARGET_DIR="${1:-$(pwd)}"
+TARGET_DIR="$(realpath "$TARGET_DIR")"
+DELETE_OLD=0
+if [ "$2" = "--delete" ]; then
+    DELETE_OLD=1
+fi
+
 FFMPEG_DIR="/app/data"
 FFMPEG_IMAGE="intel/intel-optimized-ffmpeg:latest"
-EXTENSION=${1:-mp4}
-PATTERN="*.${EXTENSION}"
+DOCKER_RUN_CMD_PREFIX="docker run --rm -v ${TARGET_DIR}:${FFMPEG_DIR} --entrypoint /bin/sh ${FFMPEG_IMAGE}"
 
-DOCKER_RUN_CMD_PREFIX="docker run --rm -v ${SAMPLE_DATA_DIRECTORY}:${FFMPEG_DIR} \
-            --entrypoint /bin/sh ${FFMPEG_IMAGE}"
-
-for mfile in "$SAMPLE_DATA_DIRECTORY"/$PATTERN; do
-    basefile=$(basename -s .$EXTENSION $mfile)
-    tsfile=${SAMPLE_DATA_DIRECTORY}/${basefile}.ts
-    echo $tsfile
-    if [ -f $tsfile ]; then
-        echo "skipping $basefile as $tsfile is available already"
+for mfile in "${TARGET_DIR}"/*.mp4; do
+    [ -e "$mfile" ] || continue
+    basefile=$(basename -s .mp4 "$mfile")
+    tsfile="${TARGET_DIR}/${basefile}.ts"
+    echo "Converting $mfile to $tsfile"
+    if [ -f "$tsfile" ]; then
+        echo "Skipping $basefile as $tsfile already exists"
     else
-        ffmpegcmd="/opt/build/bin/ffmpeg -i ${FFMPEG_DIR}/${basefile}.${EXTENSION} -c copy ${FFMPEG_DIR}/${basefile}.ts"
+        ffmpegcmd="/opt/build/bin/ffmpeg -i ${FFMPEG_DIR}/${basefile}.mp4 -c copy ${FFMPEG_DIR}/${basefile}.ts"
         cmd="$DOCKER_RUN_CMD_PREFIX -c '$ffmpegcmd'"
-        eval $cmd
+        if eval $cmd; then
+            echo "Conversion successful: $tsfile"
+            if [ $DELETE_OLD -eq 1 ]; then
+                echo "Deleting original file: $mfile"
+                rm -f "$mfile"
+            fi
+        else
+            echo "Conversion failed for $mfile"
+        fi
     fi
 done
 

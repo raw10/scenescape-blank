@@ -16,10 +16,22 @@ USER_GID=$(stat -c '%g' "${SOURCE}"/* | sort -rn | head -1)
 echo "UID=$USER_UID" > ${SOURCE}/.env
 echo "GID=$USER_GID" >> ${SOURCE}/.env
 
+# Remove existing UID/GID lines from .env
+sed -i '/^UID=/d' .env 2>/dev/null || true
+sed -i '/^GID=/d' .env 2>/dev/null || true
+
+# Append contents of src/.env to project root .env (do not overwrite other settings)
+if [ -f src/.env ]; then
+    cat src/.env >> .env
+    echo "Appended src/.env to .env in project root."
+else
+    echo "Warning: src/.env not found. UID/GID may not be set for Docker Compose."
+fi
+
 # Get a sample video if not already present
 if [ ! -d "${SOURCE}/dlstreamer-pipeline-server/videos" ] || [ -z "$(find "${SOURCE}/dlstreamer-pipeline-server/videos" -type f -name "*.mp4" 2>/dev/null)" ]; then
-  VIDEO_URL="https://github.com/open-edge-platform/scenescape/blob/v1.3.0/sample_data"
-  VIDEOS=("apriltag-cam3.mp4")
+  VIDEO_URL="https://github.com/intel-iot-devkit/sample-videos/blob/master/"
+  VIDEOS=("car-detection.mp4")
   VIDEO_DIR="${SOURCE}/dlstreamer-pipeline-server/videos"
 
   mkdir -p "${VIDEO_DIR}"

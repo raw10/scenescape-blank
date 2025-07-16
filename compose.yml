@@ -63,7 +63,6 @@ services:
       scenescape:
         aliases:
          - broker.scenescape.intel.com
-    user: "${UID}:${GID}"
     restart: on-failure:5
 
   dlstreamer-pipeline-server:
@@ -103,7 +102,7 @@ services:
     secrets:
       - source: root-cert
         target: certs/scenescape-ca.pem
-    restart: on-failure:5
+    restart: always
 
   pgserver:
     image: docker.io/intel/scenescape-manager:v1.3.0

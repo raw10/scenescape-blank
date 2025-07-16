@@ -38,8 +38,6 @@ rm -rf volumes/db volumes/media volumes/migrations
 
 # Remove dlstreamer pipeline server bind mount folders if present
 rm -rf src/dlstreamer-pipeline-server/videos
-rm -rf src/dlstreamer-pipeline-server/models
-rm -rf src/dlstreamer-pipeline-server/user_scripts
 
 # Remove any orphaned Docker volumes (including named tmpfs volumes)
 docker volume prune -f
