@@ -94,6 +94,7 @@ services:
       - MQTT_PORT=1883
     volumes:
       - ./src/dlstreamer-pipeline-server/config.json:/home/pipeline-server/config.json
+      - ./src/dlstreamer-pipeline-server/calibrations.json:/home/pipeline-server/calibrations.json
       - ./src/dlstreamer-pipeline-server/user_scripts:/home/pipeline-server/user_scripts
       - ./src/dlstreamer-pipeline-server/videos:/home/pipeline-server/videos
       - ./src/dlstreamer-pipeline-server/models:/home/pipeline-server/models

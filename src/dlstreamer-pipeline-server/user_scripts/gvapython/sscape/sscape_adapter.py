@@ -28,6 +28,115 @@ from pytz import timezone
 
 from utils import publisher_utils as utils
 
+# --- CameraIntrinsics class (from transform.py, simplified for local use) ---
+class CameraIntrinsics:
+  INTRINSICS_KEYS = ('fx', 'fy', 'cx', 'cy')
+  DISTORTION_KEYS = ('k1', 'k2', 'p1', 'p2', 'k3', 'k4', 'k5', 'k6',
+                    's1', 's2', 's3', 's4', 'taux', 'tauy')
+
+  def __init__(self, intrinsics, distortion=None, resolution=None):
+    # If dict, convert to list
+    if isinstance(intrinsics, dict):
+      intrinsics_list = self.intrinsicsDictToList(intrinsics)
+      # If all four keys are present, use them directly
+      if all(k in intrinsics for k in self.INTRINSICS_KEYS):
+        intrinsics = [
+          [intrinsics['fx'], 0.0, intrinsics['cx']],
+          [0.0, intrinsics['fy'], intrinsics['cy']],
+          [0.0, 0.0, 1.0]
+        ]
+        fov = None
+      else:
+        intrinsics = intrinsics_list
+        fov = None
+        # If fov/hfov/vfov, will be handled below
+    else:
+      fov = None
+
+    # If intrinsics is a list/tuple, handle fov/hfov/vfov
+    if isinstance(intrinsics, (list, tuple)):
+      if len(intrinsics) == 1 or len(intrinsics) == 2:
+        fov = intrinsics
+      elif len(intrinsics) == 4:
+        # fx, fy, cx, cy as a list
+        intrinsics = [
+          [intrinsics[0], 0.0, intrinsics[2]],
+          [0.0, intrinsics[1], intrinsics[3]],
+          [0.0, 0.0, 1.0]
+        ]
+    else:
+      if fov is None:
+        fov = intrinsics
+
+    # If fov is set, compute intrinsics from fov and resolution
+    if fov is not None:
+      intrinsics = self.computeIntrinsicsFromFoV(resolution, fov)
+
+    if not isinstance(intrinsics, np.ndarray):
+      intrinsics = np.array(intrinsics)
+    self.intrinsics = intrinsics
+    self._setDistortion(distortion)
+
+    return
+
+  def _setDistortion(self, distortion):
+    if distortion is not None:
+      if isinstance(distortion, (list, tuple)):
+        distortion = np.pad(np.array(distortion, dtype=np.float64),
+                            (0, 14 - len(distortion)), constant_values=0.0)
+      elif isinstance(distortion, dict):
+        distortion = np.array(self.distortionDictToList(distortion), dtype=np.float64)
+      else:
+        distortion = np.zeros(14)
+    else:
+      distortion = np.zeros(14)
+
+    self.distortion = distortion
+
+  def computeIntrinsicsFromFoV(self, resolution, fov):
+    if not isinstance(resolution, (list, tuple)) or len(resolution) != 2:
+      raise ValueError("Resolution required to calculate intrinsics from field of view")
+    cx = resolution[0] / 2
+    cy = resolution[1] / 2
+    d = math.sqrt(cx * cx + cy * cy)
+    if len(fov) == 1:
+      fx = fy = d / math.tan(math.radians(float(fov[0]) / 2))
+    else:
+      fx = cx / math.tan(math.radians(float(fov[0]) / 2))
+      fy = cy / math.tan(math.radians(float(fov[1]) / 2))
+    intrinsics = np.array([[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]])
+
+    return intrinsics
+
+  @staticmethod
+  def intrinsicsDictToList(iDict):
+    if all(key in CameraIntrinsics.INTRINSICS_KEYS for key in iDict):
+      return [iDict[key] for key in CameraIntrinsics.INTRINSICS_KEYS]
+    elif all(key in iDict for key in ('hfov', 'vfov')):
+      return [iDict['hfov'], iDict['vfov']]
+    elif 'fov' in iDict:
+      return [iDict['fov']]
+    else:
+      raise ValueError("Invalid intrinsics:", iDict)
+
+  @staticmethod
+  def distortionDictToList(dDict):
+    dList = []
+    for key in CameraIntrinsics.DISTORTION_KEYS:
+      dList.append(dDict.get(key, 0.0))
+    return dList
+
+  def asDict(self):
+    return {
+      'intrinsics': {
+        'fx': self.intrinsics[0][0],
+        'fy': self.intrinsics[1][1],
+        'cx': self.intrinsics[0][2],
+        'cy': self.intrinsics[1][2],
+      },
+      'distortion': dict(zip(self.DISTORTION_KEYS, self.distortion)),
+    }
+
 ROOT_CA = os.environ.get('ROOT_CA', '/run/secrets/certs/scenescape-ca.pem')
 DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f"
 TIMEZONE = "UTC"
@@ -100,12 +209,11 @@ def detectionPolicy(pobj, item, fw, fh):
     'category': item['detection']['label'],
     'confidence': item['detection']['confidence']
   })
-  computeObjBoundingBoxParams(pobj, fw, fh, item['x'], item['y'], item['w'],item['h'],
+  computeObjBoundingBoxParams(pobj, fw, fh, item['x'], item['y'], item['w'], item['h'],
                               item['detection']['bounding_box']['x_min'],
                               item['detection']['bounding_box']['y_min'],
                               item['detection']['bounding_box']['x_max'],
                               item['detection']['bounding_box']['y_max'])
-
   return
 
 def reidPolicy(pobj, item, fw, fh):
@@ -123,20 +231,85 @@ def classificationPolicy(pobj, item, fw, fh):
   return
 
 metadatapolicies = {
-"detectionPolicy": detectionPolicy,
-"reidPolicy": reidPolicy,
-"classificationPolicy": classificationPolicy
+  "detectionPolicy": detectionPolicy,
+  "reidPolicy": reidPolicy,
+  "classificationPolicy": classificationPolicy
 }
+
+# Load camera calibration config once at module level
+CALIBRATION_CONFIG_PATH = '/home/pipeline-server/calibrations.json'
+try:
+  with open(CALIBRATION_CONFIG_PATH, 'r') as f:
+    CAMERA_CALIBRATION = json.load(f)
+except Exception as e:
+  CAMERA_CALIBRATION = {}
+  print(f"Warning: Could not load calibration config: {e}")
+
+THRESHOLDS_PATH = "/home/pipeline-server/models/confidence_thresholds.json"
+
+def load_confidence_thresholds():
+  try:
+    with open(THRESHOLDS_PATH, "r") as f:
+      thresholds = json.load(f)
+      if isinstance(thresholds, dict) and "default" in thresholds:
+        return thresholds
+      else:
+        return {"default": 0.5}
+  except Exception:
+    return {"default": 0.5}
 
 class PostInferenceDataPublish:
   def __init__(self, cameraid, metadatagenpolicy='detectionPolicy', publish_image=False):
     self.cameraid = cameraid
-
     self.is_publish_image = publish_image
     self.is_publish_calibration_image = False
     self.setupMQTT()
     self.metadatagenpolicy = metadatapolicies[metadatagenpolicy]
     self.frame_level_data = {'id': cameraid, 'debug_mac': getMACAddress()}
+    # --- Camera intrinsics and distortion setup ---
+    calib = CAMERA_CALIBRATION.get(cameraid, {})
+    intrinsics = calib.get('intrinsics')
+    distortion = calib.get('distortion')
+    self.intrinsics_obj = None
+    self.resolution = None
+    self._calib_intrinsics = intrinsics
+    self._calib_distortion = distortion
+    # --- Confidence thresholds ---
+    self.confidence_thresholds = load_confidence_thresholds()
+    return
+
+  def get_threshold(self, obj_type):
+    return self.confidence_thresholds.get(obj_type, self.confidence_thresholds["default"])
+
+  def detectionPolicy(self, pobj, item, fw, fh):
+    obj_type = item['detection']['label']
+    confidence = item['detection']['confidence']
+    threshold = self.get_threshold(obj_type)
+    if confidence < threshold:
+      return  # Skip low-confidence detections
+    pobj.update({
+      'category': obj_type,
+      'confidence': confidence
+    })
+    computeObjBoundingBoxParams(pobj, fw, fh, item['x'], item['y'], item['w'], item['h'],
+                                item['detection']['bounding_box']['x_min'],
+                                item['detection']['bounding_box']['y_min'],
+                                item['detection']['bounding_box']['x_max'],
+                                item['detection']['bounding_box']['y_max'])
+    return
+
+  def reidPolicy(self, pobj, item, fw, fh):
+    self.detectionPolicy(pobj, item, fw, fh)
+    reid_vector = item['tensors'][1]['data']
+    # following code snippet is from percebro/modelchain.py
+    v = struct.pack("256f",*reid_vector)
+    pobj['reid'] = base64.b64encode(v).decode('utf-8')
+    return
+
+  def classificationPolicy(self, pobj, item, fw, fh):
+    self.detectionPolicy(pobj, item, fw, fh)
+    # todo: add configurable parameters(set tensor name)
+    pobj['category'] = item['classification_layer_name:efficientnet-b0/model/head/dense/BiasAdd:0']['label']
     return
 
   def on_connect(self, client, userdata, flags, rc):
@@ -181,7 +354,7 @@ class PostInferenceDataPublish:
       for obj in objects:
         topleft_cv = (int(obj['bounding_box_px']['x']), int(obj['bounding_box_px']['y']))
         bottomright_cv = (int(obj['bounding_box_px']['x'] + obj['bounding_box_px']['width']),
-                        int(obj['bounding_box_px']['y'] + obj['bounding_box_px']['height']))
+                          int(obj['bounding_box_px']['y'] + obj['bounding_box_px']['height']))
         cv2.rectangle(img, topleft_cv, bottomright_cv, objColors[cindex], 4)
     return
 
@@ -190,9 +363,9 @@ class PostInferenceDataPublish:
     fpsStr = f'FPS {fpsval:.1f}'
     scale = int((img.shape[0] + 479) / 480)
     cv2.putText(img, fpsStr, (0, 30 * scale), cv2.FONT_HERSHEY_SIMPLEX,
-            1 * scale, (0,0,0), 5 * scale)
+                1 * scale, (0,0,0), 5 * scale)
     cv2.putText(img, fpsStr, (0, 30 * scale), cv2.FONT_HERSHEY_SIMPLEX,
-            1 * scale, (255,255,255), 2 * scale)
+                1 * scale, (255,255,255), 2 * scale)
     return
 
   def buildImgData(self, imgdatadict, gvaframe, annotate):
@@ -219,15 +392,31 @@ class PostInferenceDataPublish:
       'rate': float(gvadata['fps'])
     })
     objects = defaultdict(list)
+    framewidth, frameheight = None, None
     if 'objects' in gvadata and len(gvadata['objects']) > 0:
       framewidth, frameheight = gvadata['resolution']['width'], gvadata['resolution']['height']
       for det in gvadata['objects']:
+        obj_type = det['detection']['label']
+        confidence = det['detection']['confidence']
+        threshold = self.get_threshold(obj_type)
+        if confidence < threshold:
+          continue  # Skip low-confidence detections everywhere
         vaobj = {}
         self.metadatagenpolicy(vaobj, det, framewidth, frameheight)
         otype = vaobj['category']
         vaobj['id'] = len(objects[otype]) + 1
         objects[otype].append(vaobj)
     self.frame_level_data['objects'] = objects
+
+    # --- Only check for resolution if not already set ---
+    if self.resolution is None:
+      if 'resolution' in gvadata:
+        self.resolution = [gvadata['resolution']['width'], gvadata['resolution']['height']]
+
+    # --- Update intrinsics if not set and resolution is available ---
+    if self.intrinsics_obj is None and self.resolution is not None and self._calib_intrinsics is not None:
+      self.intrinsics_obj = CameraIntrinsics(self._calib_intrinsics, self._calib_distortion, self.resolution)
+      self.frame_level_data.update(self.intrinsics_obj.asDict())
 
   def processFrame(self, frame):
     if self.client.is_connected():

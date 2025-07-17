@@ -30,14 +30,14 @@ fi
 
 # Get a sample video if not already present
 if [ ! -d "${SOURCE}/dlstreamer-pipeline-server/videos" ] || [ -z "$(find "${SOURCE}/dlstreamer-pipeline-server/videos" -type f -name "*.mp4" 2>/dev/null)" ]; then
-  VIDEO_URL="https://github.com/intel-iot-devkit/sample-videos/blob/master/"
+  VIDEO_URL="https://github.com/intel-iot-devkit/sample-videos/blob/master/" 
   VIDEOS=("car-detection.mp4")
   VIDEO_DIR="${SOURCE}/dlstreamer-pipeline-server/videos"
 
   mkdir -p "${VIDEO_DIR}"
   for VIDEO in "${VIDEOS[@]}"; do
     echo "Downloading ${VIDEO} from ${VIDEO_URL}${VIDEO}..."
-    curl -v -L "${VIDEO_URL}${VIDEO}?raw=true" -o "${VIDEO_DIR}/${VIDEO}"
+    curl -L "${VIDEO_URL}${VIDEO}?raw=true" -o "${VIDEO_DIR}/${VIDEO}"
     if [ ! -f "${VIDEO_DIR}/${VIDEO}" ]; then
         echo "Error: Failed to download ${VIDEO} to ${VIDEO_DIR}/${VIDEO}"
         ls -l "${VIDEO_DIR}"
