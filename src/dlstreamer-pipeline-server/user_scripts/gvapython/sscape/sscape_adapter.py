@@ -373,6 +373,10 @@ class PostInferenceDataPublish:
       'timestamp': self.frame_level_data['timestamp'],
       'id': self.cameraid
     })
+    # Add intrinsics and distortion if available
+    if self.intrinsics_obj is not None:
+      imgdatadict['intrinsics'] = self.intrinsics_obj.intrinsics.tolist()  # <-- publish as nested array
+      imgdatadict['distortion'] = dict(zip(self.intrinsics_obj.DISTORTION_KEYS, self.intrinsics_obj.distortion))
     with gvaframe.data() as image:
       if annotate:
         self.annotateObjects(image)
