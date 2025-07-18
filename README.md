@@ -118,7 +118,7 @@ Each entry in this file is keyed by the camera ID as specified in your pipeline 
 
 ```json
 {
-  "camera1": { ... },
+  "camera1": { },
   "camera2": {
     "intrinsics": { "hfov": 70, "vfov": 45 },
     "distortion": [0,0,0,0,0,0,0,0,0,0,0,0,0,0]
@@ -132,8 +132,8 @@ Each entry in this file is keyed by the camera ID as specified in your pipeline 
 
 ```json
 {
-  "camera1": { ... },
-  "camera2": { ... },
+  "camera1": { },
+  "camera2": { },
   "camera3": {
     "intrinsics": { "fx": 905, "fy": 905, "cx": 640, "cy": 360 },
     "distortion": [0.012,-0.123,0,0,0,0,0,0,0,0,0,0,0,0]
