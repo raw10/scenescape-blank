@@ -40,7 +40,7 @@ services:
       scenescape:
         aliases:
          - ntpserv
-    restart: on-failure:5
+    restart: always
 
   broker:
     image: docker.io/library/eclipse-mosquitto:2.0.21
@@ -64,7 +64,7 @@ services:
       scenescape:
         aliases:
          - broker.scenescape.intel.com
-    restart: on-failure:5
+    restart: always
 
   dlstreamer-pipeline-server:
     image: docker.io/intel/dlstreamer-pipeline-server:3.0.0
@@ -140,7 +140,7 @@ services:
       - browser.auth
       - controller.auth
       - supass
-    restart: on-failure:5
+    restart: always
 
   web:
     image: docker.io/intel/scenescape-manager:v1.3.0
@@ -185,7 +185,7 @@ services:
      - django
      - browser.auth
      - controller.auth
-    restart: on-failure:5
+    restart: always
 
   scene:
     image: docker.io/intel/scenescape-controller:v1.3.0
@@ -208,4 +208,4 @@ services:
        target: certs/scenescape-ca.pem
      - django
      - controller.auth
-    restart: on-failure:5
+    restart: always
