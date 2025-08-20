@@ -47,7 +47,7 @@ services:
     ports:
      - "1883:1883"
     volumes:
-    - ./src/mosquitto/mosquitto-secure.conf:/mosquitto/config/mosquitto.conf
+    - ./src/mosquitto:/mosquitto/host-config:ro
     secrets:
       - root-cert
       - broker-cert
@@ -56,7 +56,8 @@ services:
       "/bin/sh",
       "-e",
       "-c",
-      "cp -r /run/secrets /mosquitto/secrets  && \
+      "cp -r /run/secrets /mosquitto/secrets && \
+      cp /mosquitto/host-config/mosquitto-secure.conf /mosquitto/config/mosquitto.conf && \
       /docker-entrypoint.sh /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf"
     ]
     networks:
